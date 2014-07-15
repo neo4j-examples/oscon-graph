@@ -95,13 +95,13 @@ From here, there is built-in support in the standard http://docs.neo4j.org/chunk
 
 [source,cypher]
 ----
-LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/9b7c26964277d052f872021a837240995f4927c5/speakers.csv" as line
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
 CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter})
 ----
 
 [source,cypher]
 ----
-LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/0d5554825327ad5da7c1ccb30a88625d843a5997/venues.csv" as line
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
 CREATE (speaker:Venue{serial:line.serial, name:line.name})
 ----
 
@@ -110,14 +110,15 @@ For the events, it is a bit more involved since one event can have several speak
 
 [source,cypher]
 ----
-LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/5e98097170118f185888782b28fd3647f91b2509/events" as line
-MERGE (venue: Venue{serial:line.venue_serial})
-CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end})-[:AT_VENUE]->(venue)
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/events.csv" as line
+MATCH  (venue: Venue{serial:line.venue_serial})
+CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
+FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:IN_CATEGORY]->(category))
 WITH event, line
 WHERE line.speakers <> "" 
-FOREACH (speaker_serial in split(line.speakers, ",") |
-  MERGE (speaker:Speaker{serial:speaker_serial})
-  CREATE (event)<-[:SPEAKS_AT]-(speaker))
+UNWIND split(line.speakers, ",") as speaker_serial
+MATCH (speaker:Speaker{serial:speaker_serial})
+CREATE (event)<-[:SPEAKS_AT]-(speaker)
 ----
 
 Now we can easily search for some interesting stuff, for instance what talks the speaker http://twitter.com/mojavelinux[Dan Allan] is giving by looking up his twitter name:
