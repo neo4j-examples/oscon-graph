@@ -76,7 +76,8 @@ RETURN path;
 [source,cypher]
 ----
 MATCH (c:Category {name:"Databases & Datastores"})-[:HAS_CATEGORY]-(e:Event)<-[:SPEAKS_AT]-(s:Speaker)
-RETURN e.name, e.time_start, s.name, s.twitter;
+RETURN e.name, e.time_start, s.name, s.twitter
+ORDER BY e.time_start ASC;
 ----
 
 //table
@@ -105,8 +106,6 @@ RETURN speaker, venue, talk, collect(category)
 ----
 
 //graph_result
-
-//table
 
 === Connections between Speakers
 
