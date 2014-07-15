@@ -1,4 +1,4 @@
-= The OSCON Graph-in-a-Gist
+== The OSCON Graph-in-a-Gist
 
 At http://neo4j.org[Neo4j], we love going to 
 
@@ -6,13 +6,137 @@ image::http://cdn.oreillystatic.com/en/assets/1/event/115/oscon2014_logo.png[]
 
 This year, there is a http://www.oscon.com/oscon2014/public/content/schedulefeed[DYI Schedule page] that we are very intrigued by, so let's build a -- graph of the conference!
 
-== The Model
+=== The Graph Data Model
 
 We are followingthe model of the data closely and are just using three different labels for the nodes, `Venue`, `Speaker` and `Event`:
 
 image::http://yuml.me/diagram/scruffy/class/[Speaker%7C+serial+;+twitter+]-SPEAKS_AT-0..*%3E[Event%7C+serial+],[Event]-AT_VENUE%3E[Venue%7C+serial+].png[]
 
-== The Data
+If you want to learn more about how we load the data from the OSCON feed, please [#data_loading][scroll down].
+
+=== The Import
+
+From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV]:
+
+//setup
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
+CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter})
+----
+
+//setup
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
+CREATE (speaker:Venue{serial:line.serial, name:line.name})
+----
+
+
+For the events, it is a bit more involved since one event can have several speakers. We are thus creating one `venue`
+
+//setup
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/events.csv" as line
+MATCH  (venue: Venue{serial:line.venue_serial})
+CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
+FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:HAS_CATEGORY]->(category))
+WITH event, line
+WHERE line.speakers <> "" 
+UNWIND split(line.speakers, ",") as speaker_serial
+MATCH (speaker:Speaker{serial:speaker_serial})
+CREATE (event)<-[:SPEAKS_AT]-(speaker)
+----
+
+=== Graph Statistics
+
+[source,cypher]
+----
+MATCH (n)-[r]->(m)
+RETURN head(labels(n)) as from, type(r) as via, head(labels(m)) as to, count(*) as count;
+----
+
+//table
+
+
+=== Event Categories
+
+[source,cypher]
+----
+MATCH (c:Category)-[:HAS_CATEGORY]-(e:Event)
+RETURN c.name, count(*) as events
+ORDER BY events DESC
+LIMIT 10;
+----
+
+//table
+
+=== Events in a single Category
+
+[source,cypher]
+----
+MATCH path=(c:Category {name:"Databases & Datastores"})-[:HAS_CATEGORY]-(e:Event)<-[:SPEAKS_AT]-(s:Speaker)
+RETURN path;
+----
+
+//graph_result
+
+
+[source,cypher]
+----
+MATCH (c:Category {name:"Databases & Datastores"})-[:HAS_CATEGORY]-(e:Event)<-[:SPEAKS_AT]-(s:Speaker)
+RETURN e.name, e.time_start, s.name, s.twitter;
+----
+
+//table
+
+=== Looking at one Speaker
+
+Now we can easily search for some interesting stuff, for instance what talks the speaker http://twitter.com/mojavelinux[Dan Allan] is giving by looking up his twitter name:
+
+[source,cypher]
+----
+MATCH (speaker:Speaker{twitter:"mojavelinux"})-[:SPEAKS_AT]->(talk)-[:AT_VENUE]->(venue)
+RETURN speaker, venue, talk
+----
+
+//graph_result
+
+//table
+
+=== Connections between Speakers
+
+[source,cypher]
+----
+MATCH path=shortestPath((matthew:Speaker{name:"Matthew McCullough"})-[*]-(josh:Speaker{twitter:"starbuxman"}))
+RETURN path;
+----
+
+//graph_result
+
+=== Co-Occurrence of Categories
+
+[source,cypher]
+----
+MATCH (talk1)-[:HAS_CATEGORY]->(c1:Category)<-[:HAS_CATEGORY]-(talk2)-[:HAS_CATEGORY]->(c2:Category)
+RETURN c1.name, c2.name, count(*) as frequency
+ORDER BY frequency DESC
+LIMIT 10;
+----
+
+//table
+
+=== Further Ideas
+
+* Add Time-Tree / Time-Slots
+* Pull out Event-Types as separate Nodes
+* Add attendance information
+* Recommendations for talks by speaker/category
+* Spatial Venue Information (e.g. walking distance)
+
+[[data_loading]]
+=== The OSCON Data Feed
 
 First, we download the excellent http://stedolan.github.io/jq/[JQ] utility, it's a single binary, in my case I downloaded it to my current directory, `./jq`. Now, the http://www.oscon.com/oscon2014[OSCON] organizers are so awesome to publish the full schedule as a JSON feed from the http://www.oscon.com/oscon2014/public/content/schedulefeed[OSCON website] - thank you! We can parse this directly from the feed via `curl` and `jq` and pipe the the resulting lines into 3 different CSV files for Neo4j import.
 
@@ -49,13 +173,13 @@ The data feed can be downloaded and looks something like
   
 ----
 
-=== The model
+==== The Graph Model
 
 We are very pragmatic in this little post and define just three node Labels: `Venue`, `Speaker` and `Event`, following the OSCON data structure:
 
 image::http://yuml.me/diagram/scruffy/class/[Speaker%7C+serial+;+twitter+]-SPEAKS_AT-0..*%3E[Event%7C+serial+],[Event]-AT_VENUE%3E[Venue%7C+serial+].png[]
 
-=== JSON -> CSV
+==== JSON -> CSV
 
 Now, using the awesome `jq` utility, we can easily filter out the relevant bits for our import, most notably the serial numbers of `event`, `venue` and `speaker` which then are cross-referenced in the various parts. We also add a header line to each CSV file for convenience.
 
@@ -88,47 +212,3 @@ A you can see, in the last case, we have to make sure the empty values, empty ar
 ----
 
 Now we have nicely formatted `CSV` files with headers that we can import into Neo4j.
-
-== The Import
-
-From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV]:
-
-[source,cypher]
-----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
-CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter})
-----
-
-[source,cypher]
-----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
-CREATE (speaker:Venue{serial:line.serial, name:line.name})
-----
-
-
-For the events, it is a bit more involved since one event can have several speakers. We are thus creating one `venue`
-
-[source,cypher]
-----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/events.csv" as line
-MATCH  (venue: Venue{serial:line.venue_serial})
-CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
-FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:IN_CATEGORY]->(category))
-WITH event, line
-WHERE line.speakers <> "" 
-UNWIND split(line.speakers, ",") as speaker_serial
-MATCH (speaker:Speaker{serial:speaker_serial})
-CREATE (event)<-[:SPEAKS_AT]-(speaker)
-----
-
-Now we can easily search for some interesting stuff, for instance what talks the speaker http://twitter.com/mojavelinux[Dan Allan] is giving by looking up his twitter name:
-
-[source,cypher]
-----
-MATCH (dan:Speaker{twitter:"mojavelinux"})-[:SPEAKS_AT]->(talk)-[:AT_VENUE]->(venue)
-RETURN dan, talk, venue
-----
-
-//graph_results
-
-//table

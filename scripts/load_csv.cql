@@ -28,7 +28,7 @@ CREATE (:Venue{serial:line.serial, name:line.name})
 LOAD CSV WITH headers FROM "file:data/events.csv" as line
 MATCH  (venue: Venue{serial:line.venue_serial})
 CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
-FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:IN_CATEGORY]->(category))
+FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:HAS_CATEGORY]->(category))
 WITH event, line
 WHERE line.speakers <> "" 
 UNWIND split(line.speakers, ",") as speaker_serial

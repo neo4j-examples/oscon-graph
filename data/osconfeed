@@ -631,7 +631,7 @@
     
       {
         "serial": 33880,
-        "name": "How Instagram.com works",
+        "name": "How Instagram.com Works",
         "event_type": "40-minute conference session",
         
         "time_start": "2014-07-22 16:10:00",
@@ -11800,7 +11800,7 @@
         "photo": null,
         "url": "http://stochasticresonance.wordpress.com/",
         "position": "Agent Provocateur ",
-        "affiliation": "Parvus Captus",
+        "affiliation": "Pivotal",
         "twitter": "littleidea",
         "bio": "<p>Andrew has been a consumer and contributor to open source for many years. He is always up for an adventure with a broad background contributing to technology and business efforts. As a co-founder at Puppet Labs, then working in and around the OpenStack ecosystem, he had a hand in attempting to build open source businesses. Sometimes he has been known to talk about devops and organizational learning.</p>"
       },
