@@ -18,26 +18,17 @@ If you want to learn more about how we load the data from the OSCON feed, please
 
 From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV]:
 
-//setup
-[source,cypher]
-----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
-CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter})
-----
-
-//setup
-[source,cypher]
-----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
-CREATE (speaker:Venue{serial:line.serial, name:line.name})
-----
-
-
 For the events, it is a bit more involved since one event can have several speakers. We are thus creating one `venue`
 
 //setup
 [source,cypher]
 ----
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
+CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter});
+
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
+CREATE (speaker:Venue{serial:line.serial, name:line.name});
+
 LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/events.csv" as line
 MATCH  (venue: Venue{serial:line.venue_serial})
 CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
@@ -46,7 +37,7 @@ WITH event, line
 WHERE line.speakers <> "" 
 UNWIND split(line.speakers, ",") as speaker_serial
 MATCH (speaker:Speaker{serial:speaker_serial})
-CREATE (event)<-[:SPEAKS_AT]-(speaker)
+CREATE (event)<-[:SPEAKS_AT]-(speaker);
 ----
 
 === Graph Statistics
@@ -82,7 +73,6 @@ RETURN path;
 
 //graph_result
 
-
 [source,cypher]
 ----
 MATCH (c:Category {name:"Databases & Datastores"})-[:HAS_CATEGORY]-(e:Event)<-[:SPEAKS_AT]-(s:Speaker)
@@ -91,14 +81,27 @@ RETURN e.name, e.time_start, s.name, s.twitter;
 
 //table
 
-=== Looking at one Speaker
-
-Now we can easily search for some interesting stuff, for instance what talks the speaker http://twitter.com/mojavelinux[Dan Allan] is giving by looking up his twitter name:
+=== Most prolific Speakers
 
 [source,cypher]
 ----
-MATCH (speaker:Speaker{twitter:"mojavelinux"})-[:SPEAKS_AT]->(talk)-[:AT_VENUE]->(venue)
-RETURN speaker, venue, talk
+MATCH (e:Event)<-[:SPEAKS_AT]-(s:Speaker)
+RETURN s.name, s.twitter, count(*)
+ORDER BY count(*) DESC
+LIMIT 5;
+----
+
+//table
+
+
+=== Looking at one Speaker
+
+Now we can easily search for some interesting information, for instance what talks a speaker like "Damian Conway" is giving:
+
+[source,cypher]
+----
+MATCH (speaker:Speaker{name:"Damian Conway"})-[:SPEAKS_AT]->(talk)-[:AT_VENUE]->(venue), (talk)-[:HAS_CATEGORY]->(category:Category)
+RETURN speaker, venue, talk, collect(category)
 ----
 
 //graph_result
@@ -109,7 +112,7 @@ RETURN speaker, venue, talk
 
 [source,cypher]
 ----
-MATCH path=shortestPath((matthew:Speaker{name:"Matthew McCullough"})-[*]-(josh:Speaker{twitter:"starbuxman"}))
+MATCH path=shortestPath((matthew:Speaker{name:"Matthew McCullough"})-[*]-(dan:Speaker{twitter:"mojavelinux"}))
 RETURN path;
 ----
 
