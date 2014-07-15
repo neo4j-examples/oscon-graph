@@ -1,0 +1,133 @@
+= The OSCON Graph-in-a-Gist
+
+At http://neo4j.org[Neo4j], we love going to 
+
+image::http://cdn.oreillystatic.com/en/assets/1/event/115/oscon2014_logo.png[]
+
+This year, there is a http://www.oscon.com/oscon2014/public/content/schedulefeed[DYI Schedule page] that we are very intrigued by, so let's build a -- graph of the conference!
+
+== The Model
+
+We are followingthe model of the data closely and are just using three different labels for the nodes, `Venue`, `Speaker` and `Event`:
+
+image::http://yuml.me/diagram/scruffy/class/[Speaker%7C+serial+;+twitter+]-SPEAKS_AT-0..*%3E[Event%7C+serial+],[Event]-AT_VENUE%3E[Venue%7C+serial+].png[]
+
+== The Data
+
+First, we download the excellent http://stedolan.github.io/jq/[JQ] utility, it's a single binary, in my case I downloaded it to my current directory, `./jq`. Now, the http://www.oscon.com/oscon2014[OSCON] organizers are so awesome to publish the full schedule as a JSON feed from the http://www.oscon.com/oscon2014/public/content/schedulefeed[OSCON website] - thank you! We can parse this directly from the feed via `curl` and `jq` and pipe the the resulting lines into 3 different CSV files for Neo4j import.
+
+It turns out that the conference has over 350 speakers, 53 venues and 470+ talks!
+
+=== The JSON feed
+
+The data feed can be downloaded and looks something like 
+
+[source,json]
+----
+{ "Schedule": {
+    "conferences": [{"serial": 115 }],
+    "events": [
+    
+      {
+        "serial": 33451,
+        "name": "Migrating to the Web Using Dart and Polymer - A Guide for Legacy OOP Developers",
+        "event_type": "40-minute conference session",
+        
+        "time_start": "2014-07-23 17:00:00",
+        "time_stop": "2014-07-23 17:40:00",
+        "venue_serial": 1458,
+        "description": "The web development platform is massive. With tons of libraries, frameworks and concepts out there, it might be daunting for the &quot;legacy&quot; developer to jump into it.\r\n\r\nIn this presentation we will introduce Google Dart &amp; Polymer. Two hot technologies that work in harmony to create powerful web applications using concepts familiar to OOP developers.",
+        "website_url": "http://oscon.com/oscon2014/public/schedule/detail/33451", 
+        "speakers": [149868],
+        "categories": [
+        
+          "Emerging Languages"
+        
+        ]
+      },
+...
+  
+----
+
+=== The model
+
+We are very pragmatic in this little post and define just three node Labels: `Venue`, `Speaker` and `Event`, following the OSCON data structure:
+
+image::http://yuml.me/diagram/scruffy/class/[Speaker%7C+serial+;+twitter+]-SPEAKS_AT-0..*%3E[Event%7C+serial+],[Event]-AT_VENUE%3E[Venue%7C+serial+].png[]
+
+=== JSON -> CSV
+
+Now, using the awesome `jq` utility, we can easily filter out the relevant bits for our import, most notably the serial numbers of `event`, `venue` and `speaker` which then are cross-referenced in the various parts. We also add a header line to each CSV file for convenience.
+
+
+[source,bash]
+----
+#speakers
+curl 'http://www.oreilly.com/pub/sc/osconfeed' | ./jq -r '["serial", "name", "photo","url", "twitter"],(.Schedule.speakers[] | [.serial,.name, .photo, .url, .twitter]) | @csv' > speakers.csv
+
+#venues
+curl 'http://www.oreilly.com/pub/sc/osconfeed' | ./jq -r '["serial", "name"],(.Schedule.venues[] | [.serial,.name]) | @csv' > venues.csv
+
+#events
+curl 'http://www.oreilly.com/pub/sc/osconfeed' | ./jq -r '["serial", "name", "time_start","time_end", "venue_serial", "speakers"],(.Schedule.events[] | [.serial,.name, .time_start, .time_stop, .venue_serial, .speakers | if (. | type) == "null" then "" else (. | tostring | ltrimstr("[") | rtrimstr("]")) end]) | @csv' > events.csv 
+----
+
+Resulting in e.g. a `speaker.csv`, `venues.csv` and `events.csv` like that are uploaded for convenience to https://gist.github.com/peterneubauer/818241772095b8c9d41c[into this gist] and used below with their RAW URLs.
+
+A you can see, in the last case, we have to make sure the empty values, empty arrays and serialization into a parseable string from an integer array are taken care of in `jq`, resulting in the gnarly `.speakers | if (. | type) == "null" then "" else (. | tostring | ltrimstr("[") | rtrimstr("]")) end]` construct. Still, it's three one-liners and at least for me impressively compact and readable, resulting in files like event.json:
+
+[source,csv]
+----
+"serial","name","time_start","time_end","venue_serial","speakers"
+"33451","Migrating to the Web Using Dart and Polymer - A Guide for Legacy OOP Developers","2014-07-23 17:00:00","2014-07-23 17:40:00","1458","149868"
+...
+"34281","Erlang, LFE, Joxa and Elixir: Established and Emerging Languages in the Erlang Ecosystem","2014-07-23 16:10:00","2014-07-23 16:50:00","1456","172990"
+"34283","Obey the Testing Goat!  TDD for Web Development with Python","2014-07-21 09:00:00","2014-07-21 12:30:00","1450","173004"
+"34285","Idioms for Building Distributed Fault-tolerant Applications with Elixir","2014-07-23 17:00:00","2014-07-23 17:40:00","1454","76735"
+"34289","Lessons from Girl Develop It: Getting More Women Involved in Open Source","2014-07-23 10:40:00","2014-07-23 11:20:00","1462","169992,173025"
+----
+
+Now we have nicely formatted `CSV` files with headers that we can import into Neo4j.
+
+== The Import
+
+From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV]:
+
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/9b7c26964277d052f872021a837240995f4927c5/speakers.csv" as line
+CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter})
+----
+
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/0d5554825327ad5da7c1ccb30a88625d843a5997/venues.csv" as line
+CREATE (speaker:Venue{serial:line.serial, name:line.name})
+----
+
+
+For the events, it is a bit more involved since one event can have several speakers. We are thus creating one `venue`
+
+[source,cypher]
+----
+LOAD CSV WITH headers FROM "https://gist.githubusercontent.com/peterneubauer/818241772095b8c9d41c/raw/5e98097170118f185888782b28fd3647f91b2509/events" as line
+MERGE (venue: Venue{serial:line.venue_serial})
+CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end})-[:AT_VENUE]->(venue)
+WITH event, line
+WHERE line.speakers <> "" 
+FOREACH (speaker_serial in split(line.speakers, ",") |
+  MERGE (speaker:Speaker{serial:speaker_serial})
+  CREATE (event)<-[:SPEAKS_AT]-(speaker))
+----
+
+Now we can easily search for some interesting stuff, for instance what talks the speaker http://twitter.com/mojavelinux[Dan Allan] is giving by looking up his twitter name:
+
+[source,cypher]
+----
+MATCH (dan:Speaker{twitter:"mojavelinux"})-[:SPEAKS_AT]->(talk)-[:AT_VENUE]->(venue)
+RETURN dan, talk, venue
+----
+
+//graph_results
+
+//table
