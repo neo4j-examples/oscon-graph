@@ -15,7 +15,7 @@ run `scripts/doit.sh` to
 * create the 3 csv files for venues, speakers and events using jq `scripts/create_csv.sh`
 * insert the data into neo4j using your locally running neo4j instance on +http://localhost:7474+ `scripts/insert_data.sh`
 
-The following is also detailed in the http://neo4j.org/graphgist?...[GraphGist]
+The following is also detailed in the http://www.neo4j.org/graphgist?github-neo4j-examples%2Foscon-graph%2F%2Foscon_graphgist.adoc[GraphGist]
 
 == The Model
 
