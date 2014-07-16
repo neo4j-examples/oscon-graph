@@ -12,7 +12,7 @@ We are followingthe model of the data closely and are just using three different
 
 image::http://i.imgur.com/btegKZ4.jpg[]
 
-If you want to learn more about how we load the data from the OSCON feed, please [#data_loading][scroll down].
+If you want to learn more about how we load the data, please scroll down to <<data_loading>>.
 
 === The Import
 
