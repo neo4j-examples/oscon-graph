@@ -10,7 +10,7 @@ This year, there is a http://www.oscon.com/oscon2014/public/content/schedulefeed
 
 We are followingthe model of the data closely and are just using three different labels for the nodes, `Venue`, `Speaker` and `Event`:
 
-image::http://yuml.me/diagram/scruffy/class/[Speaker%7C+serial+;+twitter+]-SPEAKS_AT-0..*%3E[Event%7C+serial+],[Event]-AT_VENUE%3E[Venue%7C+serial+].png[]
+image::http://i.imgur.com/btegKZ4.jpg[]
 
 If you want to learn more about how we load the data from the OSCON feed, please [#data_loading][scroll down].
 
