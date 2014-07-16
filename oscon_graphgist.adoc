@@ -8,7 +8,7 @@ This year, there is a http://www.oscon.com/oscon2014/public/content/schedulefeed
 
 === The Graph Data Model
 
-We are followingthe model of the data closely and are just using three different labels for the nodes, `Venue`, `Speaker` and `Event`:
+We are followingthe model of the data closely and are just using three different labels for the nodes, `Venue`, `Speaker`, `Event` and `Category`:
 
 image::http://i.imgur.com/btegKZ4.jpg[]
 
@@ -16,9 +16,10 @@ If you want to learn more about how we load the data from the OSCON feed, please
 
 === The Import
 
-From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV]:
+From here, there is built-in support in the standard http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[Neo4j Cypher language] for importing files. 
+Loading venues and speakers is just a matter of iterating over the lines and using http://docs.neo4j.org/chunked/stable/cypher-query-lang.html[LOAD CSV].
 
-For the events, it is a bit more involved since one event can have several speakers. We are thus creating one `venue`
+For the events, it is a bit more involved since one event can have several speakers.
 
 //setup
 [source,cypher]
