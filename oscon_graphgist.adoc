@@ -21,17 +21,28 @@ Loading venues and speakers is just a matter of iterating over the lines and usi
 
 For the events, it is a bit more involved since one event can have several speakers.
 
+For this GraphGist we don't import the full data set, we skip the BoF's, Halls and the Office Hours.
+Please check out our http://github.com/neo4j-examples/oscon-graph[Oscon Schedule GitHub Repository] for the full setup on your local machine.
+
 //setup
 [source,cypher]
 ----
-LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
-CREATE (speaker:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter});
+CREATE INDEX ON :Speaker(serial);
+CREATE INDEX ON :Venue(serial);
+CREATE INDEX ON :Category(name);
 
 LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/venues.csv" as line
-CREATE (speaker:Venue{serial:line.serial, name:line.name});
+WITH line
+WHERE NOT line.name =~ ".*(BoF|Hall).*"
+CREATE (:Venue{serial:line.serial, name:line.name});
+
+LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/speakers.csv" as line
+CREATE (:Speaker{serial:line.serial, name:line.name, photo:line.photo, twitter:line.twitter});
 
 LOAD CSV WITH headers FROM "https://raw.githubusercontent.com/neo4j-examples/oscon-graph/master/data/events.csv" as line
-MATCH  (venue: Venue{serial:line.venue_serial})
+WITH line
+WHERE NOT (line.categories = "" OR line.categories =~ ".*Office.*")
+MATCH (venue: Venue{serial:line.venue_serial})
 CREATE (event:Event{serial:line.serial, name:line.name, time_start: line.time_start, time_end: line.time_end, type:line.event_type})-[:AT_VENUE]->(venue)
 FOREACH (category_name in split(line.categories,"|") | MERGE (category:Category {name:category_name}) CREATE (event)-[:HAS_CATEGORY]->(category))
 WITH event, line
